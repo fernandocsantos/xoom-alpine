@@ -1,0 +1,22 @@
+#!/sbin/openrc-run
+# Endereço Bluetooth do Xoom: o bootloader o passava por ATAG (que o mainline não lê);
+# ele fica na partição PDS (mmcblk0p2, offset 0xe0000, cópia em 0x104000), um abaixo do
+# MAC do Wi-Fi (0x140000). Sem isto o BCM4329 usa o endereço padrão do firmware.
+
+description="Grava o endereço Bluetooth do PDS no BCM4329"
+
+depend() {
+	before bluetooth
+}
+
+start() {
+	ebegin "Endereço Bluetooth"
+	addr=$(dd if=/dev/mmcblk0p2 bs=1 skip=$((0xe0000)) count=6 2>/dev/null |
+		od -An -tx1 | tr -s ' ' ':' | sed 's/^://; s/:$//' | tr a-f A-F)
+	case "$addr" in
+	00:00:00:00:00:00|FF:FF:FF:FF:FF:FF|"") eend 1 "endereço inválido no PDS"; return 1;;
+	esac
+	btmgmt power off >/dev/null 2>&1
+	btmgmt public-addr "$addr" >/dev/null 2>&1
+	eend $? "btmgmt public-addr $addr"
+}

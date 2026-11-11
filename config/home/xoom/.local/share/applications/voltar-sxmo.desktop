@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Voltar ao Sxmo
+Comment=Encerra o Phosh e volta para a sessão Sxmo
+Exec=/usr/local/bin/trocar-sessao sxmo
+Icon=system-log-out-symbolic
+Terminal=false
+Categories=System;

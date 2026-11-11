@@ -1,0 +1,24 @@
+#!/bin/sh
+# Sobe a sessão do Phosh (phoc + gnome-session --session=phosh), como o
+# /usr/bin/phosh-session, com o renderizador do phoc escolhido:
+#   phosh-sessao gles2   phoc pelo Mesa do grate (GR3D). O wlroots 0.19 embutido no
+#                        phoc gera os mesmos shaders do 0.20.2 que o driver reconhece.
+#   phosh-sessao pixman  phoc em software.
+# Os apps nunca recebem o Mesa do grate (o --library-path só vale para o phoc) e o
+# GTK4 desenha com cairo (o llvmpipe do sistema dá SIGILL sem o shim d16).
+# Sai com 1 se a sessão durou menos de 60 s (para o ~/.profile tentar outra).
+r=${1:-pixman}
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export XDG_SESSION_TYPE=wayland XDG_SESSION_DESKTOP=phosh XDG_CURRENT_DESKTOP=Phosh:GNOME
+export GSK_RENDERER=cairo GDK_DISABLE=gl,vulkan
+export WLR_BACKENDS=drm,libinput WLR_RENDERER=$r
+ini=/etc/phosh/phoc.ini
+[ -f $ini ] || ini=/usr/share/phosh/phoc.ini
+case $r in
+gles2) phoc="/lib/ld-musl-armhf.so.1 --library-path /opt/grate/lib-sway /usr/bin/phoc" ;;
+*) phoc=/usr/bin/phoc ;;
+esac
+inicio=$(date +%s)
+echo "phosh-sessao: phoc com $r ($(date))"
+dbus-run-session -- $phoc -v -S -C $ini -E "gnome-session --session=phosh"
+[ $(( $(date +%s) - inicio )) -ge 60 ]

@@ -1,0 +1,90 @@
+#!/sbin/openrc-run
+# GPS do Xoom (BCM4750 na UARTE = /dev/ttyTHS2), pelo userspace do Android:
+#   location       daemon da Motorola (sockets do init: android-socket-exec.py)
+#   brcm_guci_drv  motor da Broadcom (bionic do TWRP + LD_PRELOAD libgpsshim.so,
+#                  que faz o papel do /dev/gps_brcm4750: gpio56 = nReset, gpio57 = nStandby)
+#   xoom-gps-ponte HAL gps.stingray.so pela libhybris (musl) -> NMEA num pty
+#                  (/dev/gps-xoom, para o gpsd) e em /run/xoom-gps/nmea.sock (GeoClue)
+# O GPS só liga enquanto alguém lê o pty ou o socket. Ver RESUMO-SESSAO.md, "GPS BCM4750".
+
+description="GPS BCM4750 (motor Broadcom + HAL Android pela libhybris)"
+
+: ${GPS_CONFIG:=/system/etc/gpsconfig-servico.xml}
+: ${GPS_PTY:=/dev/gps-xoom}
+: ${GPS_SOCKET:=/run/xoom-gps/nmea.sock}
+: ${GPS_OCIOSO:=10}
+: ${GPS_PONTE_OPTS:=}
+
+LOGDIR=/var/log/xoom-gps
+RUNDIR=/run/xoom-gps
+
+depend() {
+	need localmount
+	after udev
+	before gpsd geoclue
+}
+
+gpio_baixo() {
+	for g in 56 57; do
+		[ -d /sys/class/gpio/gpio$g ] || echo $g > /sys/class/gpio/export
+		echo low > /sys/class/gpio/gpio$g/direction
+	done
+}
+
+start_pre() {
+	[ -c /dev/ttyTHS2 ] || { eerror "sem /dev/ttyTHS2 (DTB sem a UARTE?)"; return 1; }
+	[ -x /system/bin/brcm_guci_drv ] && [ -e /opt/hybris/lib/libhardware.so.2 ] ||
+		{ eerror "falta /system (blobs do Android) ou /opt/hybris"; return 1; }
+	ln -sf /dev/ttyTHS2 /dev/ttyHS4
+	gpio_baixo
+	checkpath -d -m 0755 $RUNDIR $LOGDIR /dev/socket /data/location \
+		/data/location/com.broadcom.gps/logs
+	# restos de execuções à mão (um motor antigo vivo impede o novo)
+	killall -q -9 xoom-gps-ponte brcm_guci_drv location hybris-gps-test
+	rm -f /data/location/gps_driver.pid
+	return 0
+}
+
+start() {
+	ebegin "Iniciando o location"
+	start-stop-daemon --start --background --make-pidfile --pidfile $RUNDIR/location.pid \
+		--chdir /data/location --stdout $LOGDIR/location.log --stderr $LOGDIR/location.log \
+		--exec /usr/bin/python3 -- /usr/local/sbin/android-socket-exec.py \
+		gpshal_socket,location_shim,gps_tcmd -- /system/bin/location
+	eend $? || return 1
+	sleep 2
+
+	ebegin "Iniciando o motor da Broadcom"
+	start-stop-daemon --start --background --make-pidfile --pidfile $RUNDIR/motor.pid \
+		--chdir /data/location --env LD_PRELOAD=/system/lib/libgpsshim.so \
+		--stdout $LOGDIR/motor.log --stderr $LOGDIR/motor.log \
+		--exec /system/bin/brcm_guci_drv -- -config "$GPS_CONFIG"
+	eend $? || return 1
+	sleep 2
+
+	ebegin "Iniciando a ponte HAL -> NMEA"
+	start-stop-daemon --start --background --make-pidfile --pidfile $RUNDIR/ponte.pid \
+		--stdout $LOGDIR/ponte.log --stderr $LOGDIR/ponte.log \
+		--exec /usr/local/sbin/xoom-gps-ponte -- \
+		-p "$GPS_PTY" -s "$GPS_SOCKET" -i "$GPS_OCIOSO" $GPS_PONTE_OPTS
+	eend $?
+}
+
+stop() {
+	ebegin "Parando a ponte"
+	start-stop-daemon --stop --retry TERM/5/KILL/2 --pidfile $RUNDIR/ponte.pid
+	eend $?
+	ebegin "Parando o motor e o location"
+	start-stop-daemon --stop --retry TERM/5/KILL/2 --pidfile $RUNDIR/motor.pid
+	start-stop-daemon --stop --retry TERM/5/KILL/2 --pidfile $RUNDIR/location.pid
+	eend 0
+}
+
+stop_post() {
+	killall -q -9 brcm_guci_drv location
+	# chip em reset (nReset e nStandby baixos): consumo mínimo
+	gpio_baixo
+	rm -f $RUNDIR/*.pid /data/location/gps_driver.pid "$GPS_PTY" "$GPS_SOCKET" \
+		/dev/socket/gpshal_socket /dev/socket/location_shim /dev/socket/gps_tcmd
+	return 0
+}

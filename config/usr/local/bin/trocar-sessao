@@ -1,0 +1,22 @@
+#!/bin/sh
+# Troca a sessão gráfica do tty1 entre Sxmo e Phosh (escolha em ~/.config/sessao-phosh,
+# lida pelo ~/.profile) e encerra a sessão atual; o login automático sobe a outra.
+# Uso: trocar-sessao phosh | sxmo   (como o usuário xoom ou root)
+set -e
+h=/home/xoom
+case "$1" in
+phosh)
+	rm -f "$h/.cache/phosh-falhou" "$h/.cache/phosh-gles2-falhou"
+	touch "$h/.config/sessao-phosh"
+	chown xoom:xoom "$h/.config/sessao-phosh" 2>/dev/null || true ;;
+sxmo)
+	rm -f "$h/.config/sessao-phosh" ;;
+*)
+	echo "uso: $0 phosh|sxmo" >&2; exit 2 ;;
+esac
+# A sway é o loader do musl (wrapper do grate) ou /usr/bin/sway; o Phosh é o phoc.
+for p in $(pidof phoc sway ld-musl-armhf.so.1 2>/dev/null); do
+	case "$(tr '\0' ' ' < /proc/$p/cmdline 2>/dev/null)" in
+	*/usr/bin/phoc*|phoc*|*/usr/bin/sway*|sway*) kill "$p" ;;
+	esac
+done

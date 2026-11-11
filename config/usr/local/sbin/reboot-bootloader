@@ -1,0 +1,7 @@
+#!/bin/sh
+# Reinicia no fastboot (bit BOOT_MODE no CPCAP, driver cpcap-reboot-mode).
+# "reboot-bootloader recovery" reinicia no recovery (p6).
+# Desliga tudo direito pelo openrc; o inittab chama o reboot-param no fim.
+modo=${1:-bootloader}
+echo "$modo" > /run/reboot-param || exit 1
+exec /sbin/reboot

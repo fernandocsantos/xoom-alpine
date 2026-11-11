@@ -1,0 +1,22 @@
+#!/sbin/openrc-run
+# Rede USB (NCM): o gadget é criado pelo initramfs; aqui só o IP e o DHCP.
+
+description="Rede USB com o PC (172.16.42.1)"
+command=/bin/busybox-extras
+command_args="udhcpd -f /etc/udhcpd.conf"
+command_background=true
+pidfile=/run/udhcpd-usb0.pid
+
+depend() {
+	need localmount
+	before dropbear
+}
+
+start_pre() {
+	i=0
+	while [ ! -e /sys/class/net/usb0 ] && [ $i -lt 20 ]; do sleep 1; i=$((i + 1)); done
+	[ -e /sys/class/net/usb0 ] || { eerror "usb0 não existe"; return 1; }
+	ip addr replace 172.16.42.1/24 dev usb0
+	ip link set usb0 up
+	touch /run/udhcpd.leases
+}

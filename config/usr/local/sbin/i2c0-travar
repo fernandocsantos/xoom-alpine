@@ -1,0 +1,47 @@
+#!/bin/sh
+# i2c0-travar: trava o i2c-0 de propósito para testar a recuperação do kernel.
+# Pelo GPIO: START, endereço 0x2c (LP8550) + leitura, ACK, e clocks até o escravo
+# pôr um bit 0 no SDA; então solta os pinos com o escravo segurando o SDA.
+G=/sys/class/gpio
+SCL=$G/gpio85; SDA=$G/gpio86
+for g in 85 86; do
+	[ -d $G/gpio$g ] || echo $g > $G/export || exit 1
+	echo in > $G/gpio$g/direction
+done
+echo "inicio: SCL=$(cat $SCL/value) SDA=$(cat $SDA/value)"
+[ "$(cat $SCL/value)$(cat $SDA/value)" = 11 ] || { echo "barramento ocupado"; exit 1; }
+# START
+echo low > $SDA/direction
+echo low > $SCL/direction
+# 0x2c << 1 | 1 = 0x59
+for b in 0 1 0 1 1 0 0 1; do
+	if [ $b = 1 ]; then echo in > $SDA/direction; else echo low > $SDA/direction; fi
+	echo in > $SCL/direction
+	echo low > $SCL/direction
+done
+echo in > $SDA/direction
+echo in > $SCL/direction
+ack=$(cat $SDA/value)
+echo low > $SCL/direction
+echo "ACK do endereço: $ack (0 = ok)"
+i=0
+while [ $i -lt 8 ]; do
+	if [ "$(cat $SDA/value)" = 0 ]; then
+		echo "escravo segurando SDA=0 no bit $i do dado; soltando os pinos"
+		echo 85 > $G/unexport
+		echo 86 > $G/unexport
+		exit 0
+	fi
+	echo in > $SCL/direction
+	echo low > $SCL/direction
+	i=$((i + 1))
+done
+echo "dado todo 1: sem travar; NACK + STOP"
+echo in > $SCL/direction
+echo low > $SCL/direction
+echo low > $SDA/direction
+echo in > $SCL/direction
+echo in > $SDA/direction
+echo 85 > $G/unexport
+echo 86 > $G/unexport
+exit 2

@@ -1,0 +1,29 @@
+#!/bin/sh
+# i2c0-destravar: solta o barramento i2c-0 (7000c000: touch mXT, backlight LP8550,
+# barômetro, ALS) quando algum escravo fica segurando o SDA em nível baixo.
+# Sintoma: dmesg cheio de "atmel_mxt_ts 0-005b: __mxt_read_reg: i2c transfer failed
+# (-16)" (perda de arbitragem a cada transferência; o T20 não tem bus clear e o DT
+# não tem recuperação por GPIO), touch morto e backlight que não apaga com a tela.
+# Pinos: I2C1 nos pinos spdo/spdi = PK5 (gpio85, SCL) e PK6 (gpio86, SDA). Exportar
+# como GPIO tira o pino do controlador; unexport devolve.
+G=/sys/class/gpio
+for g in 85 86; do
+	[ -d $G/gpio$g ] || echo $g > $G/export || exit 1
+	echo in > $G/gpio$g/direction
+done
+echo "antes: SCL=$(cat $G/gpio85/value) SDA=$(cat $G/gpio86/value)"
+# até 18 pulsos de clock (open-drain: "low" puxa, "in" solta)
+i=0
+while [ $i -lt 18 ]; do
+	echo low > $G/gpio85/direction
+	echo in > $G/gpio85/direction
+	i=$((i + 1))
+done
+# STOP: SDA sobe com SCL alto
+echo low > $G/gpio85/direction
+echo low > $G/gpio86/direction
+echo in > $G/gpio85/direction
+echo in > $G/gpio86/direction
+echo "depois: SCL=$(cat $G/gpio85/value) SDA=$(cat $G/gpio86/value)"
+echo 85 > $G/unexport
+echo 86 > $G/unexport

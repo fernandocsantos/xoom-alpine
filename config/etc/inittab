@@ -1,0 +1,16 @@
+# /etc/inittab do Xoom (Alpine)
+
+::sysinit:/sbin/openrc sysinit
+::sysinit:/sbin/openrc boot
+::wait:/sbin/openrc default
+
+# Login na tela (sem teclado físico, útil com teclado USB)
+# Login automático do usuário da interface (Sxmo inicia pelo ~/.profile)
+tty1::respawn:/bin/login -f xoom
+
+# Shell de root na serial USB (/dev/ttyACM0 no PC): acesso de emergência
+ttyGS0::respawn:-/bin/sh
+
+::ctrlaltdel:/sbin/reboot
+::shutdown:/sbin/openrc shutdown
+::shutdown:/usr/local/sbin/reboot-param --from-inittab

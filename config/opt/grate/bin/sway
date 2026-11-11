@@ -1,0 +1,10 @@
+#!/bin/sh
+# A /usr/bin/sway tem cap_sys_nice=ep, e o musl ignora LD_LIBRARY_PATH em binários
+# com capabilities. Chamando o loader direto, vale o --library-path do grate.
+# Com ~/.config/sxmo-gles2-debug presente: log -d em ~/.cache/sway-gles2-debug.log.
+lib=/opt/grate/lib-sway
+if [ -e "$HOME/.config/sxmo-gles2-debug" ]; then
+	exec /lib/ld-musl-armhf.so.1 --library-path $lib /usr/bin/sway -d "$@" \
+		> "$HOME/.cache/sway-gles2-debug.log" 2>&1
+fi
+exec /lib/ld-musl-armhf.so.1 --library-path $lib /usr/bin/sway "$@"

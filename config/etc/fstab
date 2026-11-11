@@ -1,0 +1,2 @@
+# Sistema na partição userdata do eMMC
+/dev/mmcblk0p10	/	ext4	rw,noatime	0 1

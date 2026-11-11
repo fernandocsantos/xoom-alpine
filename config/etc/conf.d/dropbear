@@ -1,0 +1,3 @@
+# /etc/conf.d/dropbear
+# -s: só login por chave (a chave fica em ssh/xoom_ed25519 no PC)
+DROPBEAR_OPTS="-s"

@@ -1,0 +1,3 @@
+#!/bin/sh
+# Diretório de execução (XDG_RUNTIME_DIR) do usuário da interface gráfica
+mkdir -p /run/user/1000 && chown xoom:xoom /run/user/1000 && chmod 700 /run/user/1000

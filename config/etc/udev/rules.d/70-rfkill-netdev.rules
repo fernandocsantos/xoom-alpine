@@ -1,0 +1,4 @@
+# /dev/rfkill para o grupo netdev (o xoom está nele). Sem logind não há "uaccess"
+# (61-gnome-settings-daemon-rfkill.rules), e o gsd-rfkill do Phosh não abria o
+# dispositivo: o Phosh não mostrava o Bluetooth.
+KERNEL=="rfkill", SUBSYSTEM=="misc", GROUP="netdev", MODE="0664"

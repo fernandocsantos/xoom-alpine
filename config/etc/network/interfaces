@@ -1,0 +1,9 @@
+auto lo
+iface lo inet loopback
+
+# usb0 é configurada pelo serviço rede-usb (o gadget USB vem do initramfs)
+
+# Wi-Fi: configure a rede em /etc/wpa_supplicant/wpa_supplicant.conf
+# e depois rode "ifup wlan0" (ou troque para "auto wlan0")
+iface wlan0 inet dhcp
+	use wpa_supplicant
